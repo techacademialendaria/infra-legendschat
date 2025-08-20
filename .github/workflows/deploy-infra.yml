@@ -1,0 +1,84 @@
+name: Deploy Azure Infrastructure
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/deploy-infra.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/deploy-infra.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.5.0"
+
+    - name: Terraform Init
+      working-directory: ./terraform/environments/prod
+      run: terraform init
+
+    - name: Terraform Format Check
+      working-directory: ./terraform/environments/prod
+      run: terraform fmt -check
+
+    - name: Terraform Validate
+      working-directory: ./terraform/environments/prod
+      run: terraform validate
+
+    - name: Terraform Plan
+      id: plan
+      working-directory: ./terraform/environments/prod
+      run: |
+        terraform plan -no-color -out=tfplan
+        echo "plan=success" >> $GITHUB_OUTPUT
+      continue-on-error: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform Plan 📋
+          \`\`\`\n
+          ${process.env.PLAN || 'No changes. Infrastructure is up-to-date.'}
+          \`\`\`
+          
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      working-directory: ./terraform/environments/prod
+      run: terraform apply -auto-approve tfplan

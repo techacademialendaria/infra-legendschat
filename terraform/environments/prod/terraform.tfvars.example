@@ -1,0 +1,22 @@
+# Azure Region
+location = "Brazil South"
+
+# Resource naming prefix
+resource_prefix = "librechat"
+
+# Environment name
+environment = "prod"
+
+# Virtual Network Configuration
+vnet_address_space = ["10.0.0.0/16"]
+container_apps_subnet_cidr = "10.0.1.0/24"
+data_services_subnet_cidr = "10.0.2.0/24"
+
+# MongoDB Configuration
+mongodb_admin_password = "your-secure-password-here"
+
+# Container Registry Configuration
+container_registry_sku = "Basic"
+
+# Log Analytics Configuration
+log_analytics_sku = "PerGB2018"
